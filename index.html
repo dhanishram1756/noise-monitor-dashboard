@@ -223,18 +223,18 @@ function drawGauge(db) {
 }
 
 function dbColor(db) {
-  if (db < 45) return "#22c55e";
-  if (db < 60) return "#eab308";
-  if (db < 75) return "#f97316";
-  if (db < 85) return "#ef4444";
+  if (db < 70) return "#22c55e";
+  if (db > 71 && db < 85) return "#eab308";
+  if (db > 86 && db < 119) return "#f97316";
+  if (db > 120) return "#ef4444";
   return "#dc2626";
 }
 
 function dbLabel(db) {
-  if (db < 45) return "Quiet";
-  if (db < 60) return "Moderate";
-  if (db < 75) return "Loud";
-  if (db < 85) return "Very Loud";
+  if (db < 70) return "Quiet";
+  if (db > 71 && db < 85) return "Moderate";
+  if (db > 86 && db < 119) return "Loud";
+  if (db > 120) return "Very Loud";
   return "Dangerous";
 }
 
