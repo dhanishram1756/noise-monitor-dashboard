@@ -225,17 +225,17 @@ function drawGauge(db) {
 function dbColor(db) {
   if (db < 74) return "#22c55e";
   if (db > 75 && db < 85) return "#eab308";
-  if (db > 86 && db < 119) return "#f97316";
-  if (db > 120) return "#ef4444";
-  return "#dc2626";
+  if (db > 86 && db < 95) return "#f97316";
+  if (db > 96 && db < 119) return "#ef4444";
+  if (db > 120) return "#dc2626";
 }
 
 function dbLabel(db) {
   if (db < 74) return "Quiet";
   if (db > 75 && db < 85) return "Moderate";
-  if (db > 86 && db < 119) return "Loud";
-  if (db > 120) return "Very Loud";
-  return "Dangerous";
+  if (db > 86 && db < 95) return "Loud";
+  if (db > 96 && db < 119) return "Very Loud";
+  if (db > 120) return "Dangerous";
 }
 
 // ── Trend chart ──────────────────────────────────────────────
