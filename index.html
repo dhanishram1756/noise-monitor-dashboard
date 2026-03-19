@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noise Monitor — Live Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #0f1117;
+    --surface:  #1a1d27;
+    --border:   #2a2d3a;
+    --text:     #e2e4ed;
+    --muted:    #7a7d8e;
+    --green:    #22c55e;
+    --yellow:   #eab308;
+    --orange:   #f97316;
+    --red:      #ef4444;
+    --danger:   #dc2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    max-width: 960px;
+    margin: 0 auto 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  /* ── Gauge ────────────────────────────────────────────────── */
+  #gauge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  #gauge-canvas { max-width: 220px; }
+  #db-value {
+    font-size: 3.2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-top: -30px;
+    letter-spacing: -0.02em;
+    transition: color 0.4s;
+  }
+  #db-unit {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  #noise-label {
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin-top: 8px;
+    padding: 4px 14px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.06);
+    transition: background 0.4s, color 0.4s;
+  }
+  /* ── Status bar ───────────────────────────────────────────── */
+  #status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 14px;
+  }
+  #dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  #dot.error { background: var(--red); animation: none; }
+  /* ── Trend chart ──────────────────────────────────────────── */
+  #chart-wrap { max-width: 960px; margin: 0 auto; }
+  #chart-wrap canvas { max-height: 220px; }
+  /* ── Threshold guide ──────────────────────────────────────── */
+  .thresholds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .t-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  /* ── Stats mini-grid ──────────────────────────────────────── */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .stat-item .s-val {
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  .stat-item .s-lbl {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎙️ Noise Monitor</h1>
+  <p>Live ambient sound level — ESP32 + INMP441</p>
+</header>
+
+<div class="grid">
+
+  <!-- Gauge card -->
+  <div class="card" style="grid-row: span 1;">
+    <div class="card-label">Current Level</div>
+    <div id="gauge-wrap">
+      <canvas id="gauge-canvas" width="220" height="130"></canvas>
+      <div id="db-value">--</div>
+      <div id="db-unit">dB SPL</div>
+      <div id="noise-label">Waiting…</div>
+      <div id="status-bar">
+        <span id="dot"></span>
+        <span id="status-text">Connecting…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats card -->
+  <div class="card">
+    <div class="card-label">Session Stats</div>
+    <div class="stats">
+      <div class="stat-item">
+        <div class="s-val" id="stat-min">--</div>
+        <div class="s-lbl">Min dB</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-val" id="stat-max">--</div>
+        <div class="s-lbl">Max dB</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-val" id="stat-avg">--</div>
+        <div class="s-lbl">Avg dB</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-val" id="stat-count">0</div>
+        <div class="s-lbl">Readings</div>
+      </div>
+    </div>
+    <div class="card-label" style="margin-top:20px">Thresholds</div>
+    <div class="thresholds">
+      <span class="t-badge" style="background:#14532d;color:#86efac">&lt; 45 dB — Quiet</span>
+      <span class="t-badge" style="background:#713f12;color:#fde047">45–60 dB — Moderate</span>
+      <span class="t-badge" style="background:#7c2d12;color:#fdba74">60–75 dB — Loud</span>
+      <span class="t-badge" style="background:#7f1d1d;color:#fca5a5">75–85 dB — Very Loud</span>
+      <span class="t-badge" style="background:#450a0a;color:#fecaca">&gt; 85 dB — Dangerous</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- Trend chart -->
+<div class="card chart-wrap" id="chart-wrap" style="max-width:960px;margin:0 auto 24px;">
+  <div class="card-label">History (last 60 readings)</div>
+  <canvas id="trend-chart"></canvas>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+// Replace with your actual Gist raw URL:
+// https://gist.githubusercontent.com/USERNAME/GIST_ID/raw/noise.json
+const GIST_RAW_URL = "https://gist.github.com/dhanishram1756/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/raw/noise.json";
+const POLL_INTERVAL_MS = 2000;
+// ────────────────────────────────────────────────────────────
+
+let sessionVals = [];
+let chartLabels = [];
+let chartData   = [];
+
+// ── Gauge (arc) ──────────────────────────────────────────────
+const gCanvas = document.getElementById("gauge-canvas");
+const gCtx    = gCanvas.getContext("2d");
+
+function drawGauge(db) {
+  const W = gCanvas.width, H = gCanvas.height;
+  gCtx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H - 10, r = 90, lw = 14;
+  const MIN = 30, MAX = 100;
+  const pct = Math.max(0, Math.min(1, (db - MIN) / (MAX - MIN)));
+
+  // Background arc
+  gCtx.beginPath();
+  gCtx.arc(cx, cy, r, Math.PI, 0, false);
+  gCtx.lineWidth = lw;
+  gCtx.strokeStyle = "#2a2d3a";
+  gCtx.lineCap = "round";
+  gCtx.stroke();
+
+  // Value arc
+  const endAngle = Math.PI + pct * Math.PI;
+  gCtx.beginPath();
+  gCtx.arc(cx, cy, r, Math.PI, endAngle, false);
+  gCtx.lineWidth = lw;
+  gCtx.strokeStyle = dbColor(db);
+  gCtx.lineCap = "round";
+  gCtx.stroke();
+
+  // Tick marks
+  for (let v = MIN; v <= MAX; v += 5) {
+    const a = Math.PI + ((v - MIN) / (MAX - MIN)) * Math.PI;
+    const inner = r - lw - 4, outer = r + 4;
+    const major = v % 10 === 0;
+    gCtx.beginPath();
+    gCtx.moveTo(cx + Math.cos(a) * (r - lw/2 - (major ? 8 : 4)),
+                cy + Math.sin(a) * (r - lw/2 - (major ? 8 : 4)));
+    gCtx.lineTo(cx + Math.cos(a) * (r - lw/2 - 1),
+                cy + Math.sin(a) * (r - lw/2 - 1));
+    gCtx.lineWidth = major ? 1.5 : 0.8;
+    gCtx.strokeStyle = major ? "#4a4d5e" : "#2a2d3a";
+    gCtx.stroke();
+  }
+}
+
+function dbColor(db) {
+  if (db < 45) return "#22c55e";
+  if (db < 60) return "#eab308";
+  if (db < 75) return "#f97316";
+  if (db < 85) return "#ef4444";
+  return "#dc2626";
+}
+
+function dbLabel(db) {
+  if (db < 45) return "Quiet";
+  if (db < 60) return "Moderate";
+  if (db < 75) return "Loud";
+  if (db < 85) return "Very Loud";
+  return "Dangerous";
+}
+
+// ── Trend chart ──────────────────────────────────────────────
+const trendChart = new Chart(document.getElementById("trend-chart"), {
+  type: "line",
+  data: {
+    labels: chartLabels,
+    datasets: [{
+      data: chartData,
+      borderColor: "#6366f1",
+      backgroundColor: "rgba(99,102,241,0.08)",
+      borderWidth: 2,
+      pointRadius: 2,
+      pointHoverRadius: 5,
+      fill: true,
+      tension: 0.35
+    }]
+  },
+  options: {
+    responsive: true,
+    animation: { duration: 300 },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        ticks: { color: "#7a7d8e", font: { size: 11 }, maxTicksLimit: 10 },
+        grid:  { color: "#2a2d3a" }
+      },
+      y: {
+        min: 30, max: 100,
+        ticks: {
+          color: "#7a7d8e",
+          font: { size: 11 },
+          callback: v => v + " dB"
+        },
+        grid: { color: "#2a2d3a" }
+      }
+    }
+  }
+});
+
+// ── Polling ──────────────────────────────────────────────────
+let fetchCount = 0;
+
+async function poll() {
+  try {
+    // Cache-bust to always get fresh Gist content
+    const url  = GIST_RAW_URL + "?cb=" + Date.now();
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+
+    const db = parseFloat(data.db);
+    const ts = data.iso ? new Date(data.iso) : new Date(data.ts * 1000);
+    const timeLabel = ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+    // Update gauge
+    drawGauge(db);
+    const col = dbColor(db);
+    document.getElementById("db-value").textContent = db.toFixed(1);
+    document.getElementById("db-value").style.color  = col;
+    const lbl = document.getElementById("noise-label");
+    lbl.textContent   = dbLabel(db);
+    lbl.style.color   = col;
+
+    // Update trend
+    if (chartLabels.length >= 60) { chartLabels.shift(); chartData.shift(); }
+    chartLabels.push(timeLabel);
+    chartData.push(db);
+    trendChart.update();
+
+    // Update stats
+    sessionVals.push(db);
+    document.getElementById("stat-min").textContent   = Math.min(...sessionVals).toFixed(1);
+    document.getElementById("stat-max").textContent   = Math.max(...sessionVals).toFixed(1);
+    const avg = sessionVals.reduce((a,b) => a+b, 0) / sessionVals.length;
+    document.getElementById("stat-avg").textContent   = avg.toFixed(1);
+    document.getElementById("stat-count").textContent = sessionVals.length;
+
+    // Status
+    document.getElementById("dot").classList.remove("error");
+    document.getElementById("status-text").textContent = "Last update: " + timeLabel;
+
+  } catch (e) {
+    console.warn("Poll error:", e);
+    document.getElementById("dot").classList.add("error");
+    document.getElementById("status-text").textContent = "Error: " + e.message;
+  }
+}
+
+// Initial gauge draw
+drawGauge(0);
+// Start polling
+poll();
+setInterval(poll, POLL_INTERVAL_MS);
+</script>
+</body>
+</html>
