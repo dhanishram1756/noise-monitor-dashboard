@@ -320,11 +320,15 @@ async function poll() {
     lbl.style.color = col;
 
     // Update full history from Gist (persistent)
-    if (data.history && data.history.length > 0) {
-      allHistory = data.history;
-      renderChart();
-      updateStats(allHistory);
-    }
+   if (data.history && data.history.length > 0) {
+    allHistory = data.history;
+} else {
+    // ESP32 direct mode — build history in browser
+    allHistory.push({ db: parseFloat(data.db), ts: data.ts, iso: new Date().toISOString() });
+    if (allHistory.length > 500) allHistory.shift();
+}
+renderChart();
+updateStats(allHistory);
 
     // Status
     document.getElementById("dot").classList.remove("error");
