@@ -106,7 +106,7 @@
   .filter-btn.active {
     background: #6366f1; border-color: #6366f1; color: #fff;
   }
-  #trend-chart { max-height: 260px; }
+  #trend-chart { max-height: 400px; }
 </style>
 </head>
 <body>
@@ -261,7 +261,7 @@ const trendChart = new Chart(document.getElementById("trend-chart"), {
         grid:  { color: "#2a2d3a" }
       },
       y: {
-        min: 30, max: 100,
+        min: 30, max: 160,
         ticks: { color: "#7a7d8e", font: { size: 11 }, callback: v => v + " dB" },
         grid:  { color: "#2a2d3a" }
       }
